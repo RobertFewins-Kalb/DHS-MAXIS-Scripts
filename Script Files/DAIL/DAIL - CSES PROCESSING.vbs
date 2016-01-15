@@ -51,8 +51,6 @@ STATS_denomination = "I"       'I is for each dail message
 'END OF stats block==============================================================================================
 
 
-
-
 'SECTION 02: THE SCRIPT
 EMConnect ""
 
@@ -151,7 +149,6 @@ Do
   PF3
   MAXIS_row = MAXIS_row + 1
   message_number = message_number + 1
-  STATS_counter = STATS_counter + 1                      'adds one instance to the stats counter	
 Loop until line_check <> "DISB"
 
 'THE FOLLOWING LINES OF CODE WERE COPIED FROM DAKOTA'S ANDREW FINK, AND MODIFIED FOR OUR PURPOSES - VKC, 10/02/2014
@@ -615,126 +612,122 @@ Dim HC_status
 'The following is the editing section. If working in inquiry, turn it into a sub by un-commenting the sub sections.
 
 'Sub fake_sub
-
-
-
-EMWriteScreen "unea", 20, 71
-transmit
-
-'Now it gets to the UNEA panel for the first member with CS
-excel_row = 1 'setting the variable for the following Do...Loop
-
-Do
-  EMReadScreen income_end_date_error_check, 50, 24, 2
-  If income_end_date_error_check = "RETROSPECTIVE DATE CANNOT BE AFTER INCOME END DATE" then
-    MsgBox "You have an income end date on this panel, but the income does not appear to have ended, or it has started up again. Fix this panel, then try the script again."
-    end_excel_and_script
-  End if
-  UNEA_number = ObjExcel.Cells(excel_row, 3).Value
-  If Len(UNEA_number) = 1 then UNEA_number = "0" & UNEA_number
-  EMWriteScreen UNEA_number, 20, 76
-  transmit
-  EMReadScreen panel_amt_check, 1, 2, 78
-  If panel_amt_check <> "1" then 
-    EMWriteScreen "01", 20, 79
-    transmit
-  End if
-  Do
-    EMReadScreen income_type_on_UNEA, 2, 5, 37
-    If income_type_on_UNEA = "__" then
-      MsgBox "The script cannot find an appropriate CS panel for this case. You may need to add a new panel. Process manually at this time."
-      end_excel_and_script
-    End if
-    If Cint(income_type_on_UNEA) <> ObjExcel.Cells(excel_row, 5).Value then transmit
-    EMReadScreen all_panels_checked, 5, 24, 02
-    If all_panels_checked = "ENTER" then
-      MsgBox "The script cannot find an appropriate CS panel for this case. You may need to add a new panel. Process manually at this time."
-      end_excel_and_script
-    End if
-  Loop until Cint(income_type_on_UNEA) = ObjExcel.Cells(excel_row, 5).Value
-  If (MFIP_active = "True" or (HC_active = "True" and revw_month = footer_month)) and ObjExcel.Cells(excel_row, 8).Value <> "checked" then call MFIP_sub
-  If MFIP_active <> "True" and FS_active = "True" and ObjExcel.Cells(excel_row, 7).Value <> "checked" then call FS_sub
-  excel_row = excel_row + 1
-Loop until ObjExcel.Cells(excel_row, 3).Value = ""
-
-'NOW THE SCRIPT LOOKS BACK THROUGH, TO SEE IF ANY UNEA PANELS DIDN'T GET UPDATED. IT WILL NOTIFY THE WORKER IF SO. IT WILL ONLY NOTIFY THE WORKER ONCE.
-'THIS IS ONLY FOR MFIP AND HC REVIEWS AT THIS TIME
-If MFIP_active = "True" or (HC_active = "True" and revw_month = footer_month) then
-  excel_row = 1
-  EMWriteScreen "unea", 20, 71
-  EMWriteScreen "01", 20, 76
-  transmit
-  Do
-    UNEA_number = ObjExcel.Cells(excel_row, 3).Value
-    If Len(UNEA_number) = 1 then UNEA_number = "0" & UNEA_number
-    EMWriteScreen UNEA_number, 20, 76
-    transmit
-    EMReadScreen panel_amt_check, 1, 2, 78
-    If panel_amt_check <> "1" then 
-      EMWriteScreen "01", 20, 79
-      transmit
-    End if
-    Do
-      EMReadScreen panel_current_check, 1, 2, 73
-      EMReadScreen panel_amt_check, 1, 2, 78
-      EMReadScreen income_type_on_UNEA, 2, 5, 37
-      If income_type_on_UNEA = "36" or income_type_on_UNEA = "37" or income_type_on_UNEA = "39" then
-        EMReadScreen UNEA_prospective_month, 2, 13, 54
-        EMReadScreen UNEA_prospective_year, 2, 13, 60
-        If UNEA_prospective_month <> footer_month or UNEA_prospective_year <> footer_year then
-          EMReadScreen UNEA_prospective_amt, 8, 13, 68
-          If UNEA_prospective_amt <> "________" and UNEA_prospective_amt <> "    0.00" then
-            income_end = MsgBox ("This script couldn't find a DAIL message that matches this UNEA CSES panel. You may want to look this case over. Would you like the script to continue?", 4)
-            if income_end = 7 then end_excel_and_script
-            shown_message = True
-          End if
-        End if
-      End if
-      If shown_message = True then exit do
-      transmit
-    Loop until panel_amt_check = panel_current_check
-    If shown_message = True then exit do
-    excel_row = excel_row + 1
-  Loop until ObjExcel.Cells(excel_row, 3).Value = ""
-End if
-
-
-
-'This is a dialog which will ask if the worker wants to case note, if the case was already case noted.
-BeginDialog already_case_noted_dialog, 0, 0, 191, 52, "Already case noted?"
-  ButtonGroup already_case_noted_dialog_ButtonPressed
-    CancelButton 130, 30, 50, 15
-    OkButton 130, 10, 50, 15
-  Text 10, 10, 105, 35, "You appear to have already case noted this. To case note again, press ''ok''. To exit, press ''cancel''."
-EndDialog
-already_case_noted_dialog_ButtonPressed = "1" 'setting the variable for the next section.
-PF4
-EMReadScreen CSES_messages_reviewed_check, 28, 5, 25
-If CSES_messages_reviewed_check = ":::CSES messages reviewed:::" then dialog already_case_noted_dialog
-If already_case_noted_dialog_ButtonPressed = 0 then end_excel_and_script
-PF9
-EMReadScreen case_note_mode_check, 7, 20, 3
-If case_note_mode_check <> "Mode: A" then MsgBox "You are not in a case note on edit mode. You might be in inquiry. Try the script again in production."
-If case_note_mode_check <> "Mode: A" then end_excel_and_script
-EMSendKey ":::CSES messages reviewed:::" + "<newline>"
-If MFIP_active = "True" then EMSendKey "* Updated retro/prospective income amounts." + "<newline>"
-If MFIP_active <> "True" and FS_active = "True" then EMSendKey "* FS PIC reviewed, income appears to be in range." + "<newline>"
-If MFIP_active = "True" and FS_active = "True" then EMSendKey "* FS PIC not evalutated, as case also has MFIP." + "<newline>"
-If HC_active = "True" then EMSendKey HC_status + "<newline>"
-EMSendKey "---" + "<newline>"
-BeginDialog worker_sig_dialog, 0, 0, 141, 47, "Worker signature"
-  EditBox 15, 25, 50, 15, worker_sig
-  ButtonGroup ButtonPressed_worker_sig_dialog
-    OkButton 85, 5, 50, 15
-    CancelButton 85, 25, 50, 15
-  Text 5, 10, 75, 10, "Sign your case note."
-EndDialog
-dialog worker_sig_dialog
-
-If ButtonPressed_worker_sig_dialog = 0 then end_excel_and_script
-EMSendKey worker_sig & ", using automated script."
+	EMWriteScreen "unea", 20, 71
+	transmit
+	
+	'Now it gets to the UNEA panel for the first member with CS
+	excel_row = 1 'setting the variable for the following Do...Loop
+	
+	Do
+	EMReadScreen income_end_date_error_check, 50, 24, 2
+	If income_end_date_error_check = "RETROSPECTIVE DATE CANNOT BE AFTER INCOME END DATE" then
+		MsgBox "You have an income end date on this panel, but the income does not appear to have ended, or it has started up again. Fix this panel, then try the script again."
+		end_excel_and_script
+	End if
+	UNEA_number = ObjExcel.Cells(excel_row, 3).Value
+	If Len(UNEA_number) = 1 then UNEA_number = "0" & UNEA_number
+	EMWriteScreen UNEA_number, 20, 76
+	transmit
+	EMReadScreen panel_amt_check, 1, 2, 78
+	If panel_amt_check <> "1" then 
+		EMWriteScreen "01", 20, 79
+		transmit
+	End if
+	Do
+		EMReadScreen income_type_on_UNEA, 2, 5, 37
+		If income_type_on_UNEA = "__" then
+		MsgBox "The script cannot find an appropriate CS panel for this case. You may need to add a new panel. Process manually at this time."
+		end_excel_and_script
+		End if
+		If Cint(income_type_on_UNEA) <> ObjExcel.Cells(excel_row, 5).Value then transmit
+		EMReadScreen all_panels_checked, 5, 24, 02
+		If all_panels_checked = "ENTER" then
+		MsgBox "The script cannot find an appropriate CS panel for this case. You may need to add a new panel. Process manually at this time."
+		end_excel_and_script
+		End if
+	Loop until Cint(income_type_on_UNEA) = ObjExcel.Cells(excel_row, 5).Value
+	If (MFIP_active = "True" or (HC_active = "True" and revw_month = footer_month)) and ObjExcel.Cells(excel_row, 8).Value <> "checked" then call MFIP_sub
+	If MFIP_active <> "True" and FS_active = "True" and ObjExcel.Cells(excel_row, 7).Value <> "checked" then call FS_sub
+	excel_row = excel_row + 1
+	Loop until ObjExcel.Cells(excel_row, 3).Value = ""
+	
+	'NOW THE SCRIPT LOOKS BACK THROUGH, TO SEE IF ANY UNEA PANELS DIDN'T GET UPDATED. IT WILL NOTIFY THE WORKER IF SO. IT WILL ONLY NOTIFY THE WORKER ONCE.
+	'THIS IS ONLY FOR MFIP AND HC REVIEWS AT THIS TIME
+	If MFIP_active = "True" or (HC_active = "True" and revw_month = footer_month) then
+	excel_row = 1
+	EMWriteScreen "unea", 20, 71
+	EMWriteScreen "01", 20, 76
+	transmit
+	Do
+		UNEA_number = ObjExcel.Cells(excel_row, 3).Value
+		If Len(UNEA_number) = 1 then UNEA_number = "0" & UNEA_number
+		EMWriteScreen UNEA_number, 20, 76
+		transmit
+		EMReadScreen panel_amt_check, 1, 2, 78
+		If panel_amt_check <> "1" then 
+		EMWriteScreen "01", 20, 79
+		transmit
+		End if
+		Do
+		EMReadScreen panel_current_check, 1, 2, 73
+		EMReadScreen panel_amt_check, 1, 2, 78
+		EMReadScreen income_type_on_UNEA, 2, 5, 37
+		If income_type_on_UNEA = "36" or income_type_on_UNEA = "37" or income_type_on_UNEA = "39" then
+			EMReadScreen UNEA_prospective_month, 2, 13, 54
+			EMReadScreen UNEA_prospective_year, 2, 13, 60
+			If UNEA_prospective_month <> footer_month or UNEA_prospective_year <> footer_year then
+			EMReadScreen UNEA_prospective_amt, 8, 13, 68
+			If UNEA_prospective_amt <> "________" and UNEA_prospective_amt <> "    0.00" then
+				income_end = MsgBox ("This script couldn't find a DAIL message that matches this UNEA CSES panel. You may want to look this case over. Would you like the script to continue?", 4)
+				if income_end = 7 then end_excel_and_script
+				shown_message = True
+			End if
+			End if
+		End if
+		If shown_message = True then exit do
+		transmit
+		Loop until panel_amt_check = panel_current_check
+		If shown_message = True then exit do
+		excel_row = excel_row + 1
+	Loop until ObjExcel.Cells(excel_row, 3).Value = ""
+	End if
+	
+	'This is a dialog which will ask if the worker wants to case note, if the case was already case noted.
+	BeginDialog already_case_noted_dialog, 0, 0, 191, 52, "Already case noted?"
+	ButtonGroup already_case_noted_dialog_ButtonPressed
+		CancelButton 130, 30, 50, 15
+		OkButton 130, 10, 50, 15
+	Text 10, 10, 105, 35, "You appear to have already case noted this. To case note again, press ''ok''. To exit, press ''cancel''."
+	EndDialog
+	already_case_noted_dialog_ButtonPressed = "1" 'setting the variable for the next section.
+	PF4
+	EMReadScreen CSES_messages_reviewed_check, 28, 5, 25
+	If CSES_messages_reviewed_check = ":::CSES messages reviewed:::" then dialog already_case_noted_dialog
+	If already_case_noted_dialog_ButtonPressed = 0 then end_excel_and_script
+	PF9
+	EMReadScreen case_note_mode_check, 7, 20, 3
+	If case_note_mode_check <> "Mode: A" then MsgBox "You are not in a case note on edit mode. You might be in inquiry. Try the script again in production."
+	If case_note_mode_check <> "Mode: A" then end_excel_and_script
+	EMSendKey ":::CSES messages reviewed:::" + "<newline>"
+	If MFIP_active = "True" then EMSendKey "* Updated retro/prospective income amounts." + "<newline>"
+	If MFIP_active <> "True" and FS_active = "True" then EMSendKey "* FS PIC reviewed, income appears to be in range." + "<newline>"
+	If MFIP_active = "True" and FS_active = "True" then EMSendKey "* FS PIC not evalutated, as case also has MFIP." + "<newline>"
+	If HC_active = "True" then EMSendKey HC_status + "<newline>"
+	EMSendKey "---" + "<newline>"
+	BeginDialog worker_sig_dialog, 0, 0, 141, 47, "Worker signature"
+	EditBox 15, 25, 50, 15, worker_sig
+	ButtonGroup ButtonPressed_worker_sig_dialog
+		OkButton 85, 5, 50, 15
+		CancelButton 85, 25, 50, 15
+	Text 5, 10, 75, 10, "Sign your case note."
+	EndDialog
+	dialog worker_sig_dialog
+	
+	If ButtonPressed_worker_sig_dialog = 0 then end_excel_and_script
+	EMSendKey worker_sig & ", using automated script."
 
 'End sub
+
 
 If MFIP_active = "True" then 
   MsgBox "MFIP is active, so the script will not check PRISM for this case. It will now stop."
@@ -754,114 +747,123 @@ transmit
 
 excel_row = 1 'Resetting the variable for the PRISM part of the script.
 Do 
-If ObjExcel.Cells(excel_row, 9).Value = "" then exit do 'This gets out of the do...loop if there is no SSN indicated.
 
-'The following is a lockout dialog to prevent workers from freezing the PRISM screen.
-BeginDialog PRISM_lockout_dialog, 0, 0, 191, 57, "PRISM lockout dialog"
-  ButtonGroup PRISM_lockout_dialog_ButtonPressed
-    OkButton 135, 10, 50, 15
-    CancelButton 135, 30, 50, 15
-  Text 10, 5, 110, 45, "You are locked out of PRISM. Get back to the PRISM main menu before pressing OK. Pressing cancel will cause the script to end."
-EndDialog
-
-
-'Now it returns to the PRISM start screen.
-  Do
-    PF3
-    EMReadScreen PRISM_check, 5, 1, 36
-    EMReadScreen PRISM_person_search_check, 9, 2, 34
-    If PRISM_check = "PRISM" and PRISM_person_search_check = "Main Menu" then exit do
-    If PRISM_check <> "PRISM" then Dialog PRISM_lockout_dialog
-    If PRISM_check <> "PRISM" and PRISM_lockout_dialog_ButtonPressed = 0 then 
-      end_excel_and_script
-    End if
-      
-  Loop until PRISM_check = "PRISM" and PRISM_person_search_check = "Main Menu"
-
-  Do 'This will check to make sure the excel row isn't duplicating work.
-    If ObjExcel.Cells(excel_row, 10).Value = "SSN checked" then excel_row = excel_row + 1
-  Loop until ObjExcel.Cells(excel_row, 10).Value = ""
-
-  EMWriteScreen "PESE", 21, 18
-  transmit
-
-  current_SSN_with_spaces = ObjExcel.Cells(excel_row, 9).Value
-  current_SSN = replace(ObjExcel.Cells(excel_row, 9).Value, " ", "")
-  EMWriteScreen "                 ", 4, 20
-  EMWriteScreen "            ", 5, 20
-  EMWriteScreen "            ", 6, 20
-  EMWriteScreen "   ", 7, 20
-  EMWriteScreen " ", 9, 13
-  EMWriteScreen "          ", 9, 32
-  EMWriteScreen "  ", 9, 68
-  EMWriteScreen "  ", 9, 76
-  EMWriteScreen "          ", 10, 32
-  EMWriteScreen "N", 10, 67
-  EMWriteScreen "N", 10, 76
-  EMWriteScreen "N", 12, 54
-
-  EMWritescreen left(current_SSN, 3), 10, 13
-  EMWritescreen right(left(current_SSN, 5), 2), 10, 17
-  EMwritescreen right(current_SSN, 4), 10, 20
-  transmit
-
-  EMWriteScreen "x", 5, 5
-  transmit
-
-
-'Now it checks to see if there is more than one case. If there is, the script will have a worker message then stop. If not, the script will select the case.
-  EMReadScreen case_amount_check, 1, 7, 17
-if case_amount_check <> 1 then
-  Do 
-    EMReadScreen ind_active_check, 1, 7, 41
-    If ind_active_check = "Y" then exit do
-    EMReadScreen current_case_check, 1, 7, 12
-    If current_case_check = case_amount_check then MsgBox "The script could not determine which child support case is active for this HH member. Check PRISM manually."
-
-    If current_case_check = case_amount_check then end_excel_and_script
-    PF8
-    EMWaitReady 1, 0
-  Loop until ind_active_check = "Y"
-end if
-
-  EMWriteScreen "s", 2, 20
-  transmit
-
-  EMWriteScreen "CAFS", 21, 17
-  transmit
-
-'Now we are in CAFS, and the script will read the Obl field to determine if the Obl is CCC, CMS, or CMI.
-  EMReadScreen CAFS_check_01, 3, 17, 18
-  EMReadScreen CAFS_check_02, 3, 18, 18
-  EMReadScreen CAFS_check_03, 3, 19, 18
-  EMReadScreen CAFS_check_04, 3, 20, 18
-  EMReadScreen CAFS_balance_check_01, 4, 17, 59
-  EMReadScreen CAFS_balance_check_02, 4, 18, 59
-  EMReadScreen CAFS_balance_check_03, 4, 19, 59
-  EMReadScreen CAFS_balance_check_04, 4, 20, 59
-  If CAFS_balance_check_01 <> "0.00" and (CAFS_check_01 = "CCC" or CAFS_check_01 = "CMS" or CAFS_check_01 = "CMI") then MsgBox "The Obl type is CCC, CMS, or CMI, and a balance is listed. Process this manually, and check the other children in the household for this as well. Check with a PC if you have any questions. The MAXIS part of the script has already case noted for you."
-
-  If CAFS_balance_check_01 <> "0.00" and (CAFS_check_01 = "CCC" or CAFS_check_01 = "CMS" or CAFS_check_01 = "CMI") then end_excel_and_script
-  If CAFS_balance_check_02 <> "0.00" and (CAFS_check_02 = "CCC" or CAFS_check_02 = "CMS" or CAFS_check_02 = "CMI") then MsgBox "The Obl type is CCC, CMS, or CMI, and a balance is listed. Process this manually, and check the other children in the household for this as well. Check with a PC if you have any questions. The MAXIS part of the script has already case noted for you."
-
-  If CAFS_balance_check_02 <> "0.00" and (CAFS_check_02 = "CCC" or CAFS_check_02 = "CMS" or CAFS_check_02 = "CMI") then end_excel_and_script
-  If CAFS_balance_check_03 <> "0.00" and (CAFS_check_03 = "CCC" or CAFS_check_03 = "CMS" or CAFS_check_03 = "CMI") then MsgBox "The Obl type is CCC, CMS, or CMI, and a balance is listed. Process this manually, and check the other children in the household for this as well. Check with a PC if you have any questions. The MAXIS part of the script has already case noted for you."
-
-  If CAFS_balance_check_03 <> "0.00" and (CAFS_check_03 = "CCC" or CAFS_check_03 = "CMS" or CAFS_check_03 = "CMI") then end_excel_and_script
-  If CAFS_balance_check_04 <> "0.00" and (CAFS_check_04 = "CCC" or CAFS_check_04 = "CMS" or CAFS_check_04 = "CMI") then MsgBox "The Obl type is CCC, CMS, or CMI, and a balance is listed. Process this manually, and check the other children in the household for this as well. Check with a PC if you have any questions. The MAXIS part of the script has already case noted for you."
-
-  If CAFS_balance_check_04 <> "0.00" and (CAFS_check_04 = "CCC" or CAFS_check_04 = "CMS" or CAFS_check_04 = "CMI") then end_excel_and_script
-
-'Now it returns to the main menu of PRISM.
-  PF3
-
-'Now it marks any SSNs that have already been checked as having been checked. This way it doesn't check them again.
-  SSN_check_excel_row = excel_row 'copying the row over so we don't overwrite the overall excel row.
-  Do
-    If current_SSN_with_spaces = ObjExcel.Cells(SSN_check_excel_row, 9).Value and ObjExcel.Cells(SSN_check_excel_row, 9).Value <> "" then ObjExcel.Cells(SSN_check_excel_row, 10).Value = "SSN checked"
-    SSN_check_excel_row = SSN_check_excel_row + 1
-  Loop until ObjExcel.Cells(SSN_check_excel_row, 9).Value = ""
-  excel_row = excel_row + 1
+	' >>>>>> ONE LINE ADDED BY ROBERT FEWINS-KALB 01/15/2016 <<<<<<<<
+	'Explanation -- because I'm not sure it was being articulated on GH, but users on SIR are reporting the problem as well...
+	'This gets out of the do...loop if there is no SSN indicated. 
+	'In testing with Excel visible, I was seeing where the script was reading new rows to the point that the SSN cell is blank.
+	'The script would then try to dump a blank SSN into PRISM and read how many cases were there, except that PRISM would not be navigating to the pop up where the number of cases are, because of the blank SSN.
+	'I am not able to identify what about the cases causes this error to occur -- because it does not happen on every case -- but it's a real thing.
+	If ObjExcel.Cells(excel_row, 9).Value = "" then exit do 
+	
+	'The following is a lockout dialog to prevent workers from freezing the PRISM screen.
+	BeginDialog PRISM_lockout_dialog, 0, 0, 191, 57, "PRISM lockout dialog"
+	ButtonGroup PRISM_lockout_dialog_ButtonPressed
+		OkButton 135, 10, 50, 15
+		CancelButton 135, 30, 50, 15
+	Text 10, 5, 110, 45, "You are locked out of PRISM. Get back to the PRISM main menu before pressing OK. Pressing cancel will cause the script to end."
+	EndDialog
+	
+	
+	'Now it returns to the PRISM start screen.
+	Do
+		PF3
+		EMReadScreen PRISM_check, 5, 1, 36
+		EMReadScreen PRISM_person_search_check, 9, 2, 34
+		If PRISM_check = "PRISM" and PRISM_person_search_check = "Main Menu" then exit do
+		If PRISM_check <> "PRISM" then Dialog PRISM_lockout_dialog
+		If PRISM_check <> "PRISM" and PRISM_lockout_dialog_ButtonPressed = 0 then 
+		end_excel_and_script
+		End if
+		
+	Loop until PRISM_check = "PRISM" and PRISM_person_search_check = "Main Menu"
+	
+	Do 'This will check to make sure the excel row isn't duplicating work.
+		If ObjExcel.Cells(excel_row, 10).Value = "SSN checked" then excel_row = excel_row + 1
+	Loop until ObjExcel.Cells(excel_row, 10).Value = ""
+	
+	IF ObjExcel.Cells(excel_row, 9).Value = "" THEN Exit DO
+	
+	EMWriteScreen "PESE", 21, 18
+	transmit
+	
+	current_SSN_with_spaces = ObjExcel.Cells(excel_row, 9).Value
+	current_SSN = replace(ObjExcel.Cells(excel_row, 9).Value, " ", "")
+	EMWriteScreen "                 ", 4, 20
+	EMWriteScreen "            ", 5, 20
+	EMWriteScreen "            ", 6, 20
+	EMWriteScreen "   ", 7, 20
+	EMWriteScreen " ", 9, 13
+	EMWriteScreen "          ", 9, 32
+	EMWriteScreen "  ", 9, 68
+	EMWriteScreen "  ", 9, 76
+	EMWriteScreen "          ", 10, 32
+	EMWriteScreen "N", 10, 67
+	EMWriteScreen "N", 10, 76
+	EMWriteScreen "N", 12, 54
+	
+	EMWritescreen left(current_SSN, 3), 10, 13
+	EMWritescreen right(left(current_SSN, 5), 2), 10, 17
+	EMwritescreen right(current_SSN, 4), 10, 20
+	transmit
+	
+	EMWriteScreen "x", 5, 5
+	transmit
+	
+	
+	'Now it checks to see if there is more than one case. If there is, the script will have a worker message then stop. If not, the script will select the case.
+	EMReadScreen case_amount_check, 1, 7, 17
+	if case_amount_check <> 1 then
+		Do 
+			EMReadScreen ind_active_check, 1, 7, 41
+			If ind_active_check = "Y" then exit do
+			EMReadScreen current_case_check, 1, 7, 12
+			If current_case_check = case_amount_check then MsgBox "The script could not determine which child support case is active for this HH member. Check PRISM manually."
+		
+			If current_case_check = case_amount_check then end_excel_and_script
+			PF8
+			EMWaitReady 1, 0
+		Loop until ind_active_check = "Y"
+	end if
+	
+	EMWriteScreen "s", 2, 20
+	transmit
+	
+	EMWriteScreen "CAFS", 21, 17
+	transmit
+	
+	'Now we are in CAFS, and the script will read the Obl field to determine if the Obl is CCC, CMS, or CMI.
+	EMReadScreen CAFS_check_01, 3, 17, 18
+	EMReadScreen CAFS_check_02, 3, 18, 18
+	EMReadScreen CAFS_check_03, 3, 19, 18
+	EMReadScreen CAFS_check_04, 3, 20, 18
+	EMReadScreen CAFS_balance_check_01, 4, 17, 59
+	EMReadScreen CAFS_balance_check_02, 4, 18, 59
+	EMReadScreen CAFS_balance_check_03, 4, 19, 59
+	EMReadScreen CAFS_balance_check_04, 4, 20, 59
+	If CAFS_balance_check_01 <> "0.00" and (CAFS_check_01 = "CCC" or CAFS_check_01 = "CMS" or CAFS_check_01 = "CMI") then MsgBox "The Obl type is CCC, CMS, or CMI, and a balance is listed. Process this manually, and check the other children in the household for this as well. Check with a PC if you have any questions. The MAXIS part of the script has already case noted for you."
+	
+	If CAFS_balance_check_01 <> "0.00" and (CAFS_check_01 = "CCC" or CAFS_check_01 = "CMS" or CAFS_check_01 = "CMI") then end_excel_and_script
+	If CAFS_balance_check_02 <> "0.00" and (CAFS_check_02 = "CCC" or CAFS_check_02 = "CMS" or CAFS_check_02 = "CMI") then MsgBox "The Obl type is CCC, CMS, or CMI, and a balance is listed. Process this manually, and check the other children in the household for this as well. Check with a PC if you have any questions. The MAXIS part of the script has already case noted for you."
+	
+	If CAFS_balance_check_02 <> "0.00" and (CAFS_check_02 = "CCC" or CAFS_check_02 = "CMS" or CAFS_check_02 = "CMI") then end_excel_and_script
+	If CAFS_balance_check_03 <> "0.00" and (CAFS_check_03 = "CCC" or CAFS_check_03 = "CMS" or CAFS_check_03 = "CMI") then MsgBox "The Obl type is CCC, CMS, or CMI, and a balance is listed. Process this manually, and check the other children in the household for this as well. Check with a PC if you have any questions. The MAXIS part of the script has already case noted for you."
+	
+	If CAFS_balance_check_03 <> "0.00" and (CAFS_check_03 = "CCC" or CAFS_check_03 = "CMS" or CAFS_check_03 = "CMI") then end_excel_and_script
+	If CAFS_balance_check_04 <> "0.00" and (CAFS_check_04 = "CCC" or CAFS_check_04 = "CMS" or CAFS_check_04 = "CMI") then MsgBox "The Obl type is CCC, CMS, or CMI, and a balance is listed. Process this manually, and check the other children in the household for this as well. Check with a PC if you have any questions. The MAXIS part of the script has already case noted for you."
+	
+	If CAFS_balance_check_04 <> "0.00" and (CAFS_check_04 = "CCC" or CAFS_check_04 = "CMS" or CAFS_check_04 = "CMI") then end_excel_and_script
+	
+	'Now it returns to the main menu of PRISM.
+	PF3
+	
+	'Now it marks any SSNs that have already been checked as having been checked. This way it doesn't check them again.
+	SSN_check_excel_row = excel_row 'copying the row over so we don't overwrite the overall excel row.
+	Do
+		If current_SSN_with_spaces = ObjExcel.Cells(SSN_check_excel_row, 9).Value and ObjExcel.Cells(SSN_check_excel_row, 9).Value <> "" then ObjExcel.Cells(SSN_check_excel_row, 10).Value = "SSN checked"
+		SSN_check_excel_row = SSN_check_excel_row + 1
+	Loop until ObjExcel.Cells(SSN_check_excel_row, 9).Value = ""
+	excel_row = excel_row + 1
 Loop until ObjExcel.Cells(excel_row, 9).Value = ""
 
 'Now it will navigate back to MAXIS for the ending.
@@ -873,7 +875,6 @@ MsgBox "PRISM checked, no CMI/CMS/CCC obl types indicated on CAFS. The script fi
 'Manually closing workbooks so that the stats script can finish up
 objExcel.Workbooks.Close
 objExcel.quit
-
 
 'ending script
 script_end_procedure("")
