@@ -877,3 +877,481 @@ objExcel.quit
 
 'ending script
 script_end_procedure("")
+
+
+'>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<
+'>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<
+'>>>>>>>>>>>>>>>>>>>><><><><><><><><><><><><><><<><>
+'>>>> THE BITS BELOW ARE WHAT ROBERT HAS <><><><><><<
+'>>>>>   BEEN WORKING ON ... MOSTLY BITS  <<<<<<<><
+'>>>>> AND PIECES, BUT ALSO THE FUNCTIONS <<<<<<<<<<<
+'>>>>> NEEDED TO SORT NUMERIC THE VALUES <<<<<<<<<<<
+'>>>>> NOT SURE WHAT'S GOING TO BE HELPFUL <<<<<<<<<
+
+
+'Custom functions & dlgs ===============================================
+FUNCTION build_dsp_dlg(input_class)
+
+	
+
+	'Building the upper and lower bounds of the realm
+	IF input_class.UNEA_pic_amt_array <> "" THEN 
+		input_class.UNEA_pic_amt_array = split(input_class.UNEA_pic_amt_array, ",")
+		num_of_payments = ubound(input_class.UNEA_pic_amt_array)
+		REDIM building_realm_array(num_of_payments, 0)
+		array_position = 0
+		FOR EACH num_char IN input_class.UNEA_pic_amt_array
+			IF num_char <> "" THEN
+				building_realm_array(array_position, 0) = num_char
+				array_position = array_position + 1
+			END IF
+		NEXT
+
+		'hard coded for now
+		IF input_class.UNEA_type = "39" THEN 
+			pay_amt = 23.60
+		ELSEIF input_class.UNEA_type = "36" THEN 
+			pay_amt = 57.50
+		END IF
+		
+		'determining if in realm and assigning to class property
+		IF pay_amt >= input_class.lower_realm AND pay_amt =< input_class.upper_realm THEN 
+			within_the_realm = 1
+		ELSE
+			within_the_realm = 0
+		END IF
+		
+		'Assigning values to upper bound and lower bound of REALM
+		input_class.upper_realm = FormatCurrency(1.10 * building_realm_array(num_of_payments - 1, 0))
+		input_class.lower_realm = FormatCurrency(0.90 * building_realm_array(0, 0))
+	ELSE
+		
+		pay_amt = 57.50
+			
+		input_class.upper_realm = "N/A"
+	    input_class.lower_realm = "N/A"
+		
+		within_the_realm = 0
+	END IF
+
+'Building and displaying the dialog
+BeginDialog Dialog1, 0, 0, 196, 175, "Dialog"
+  Text 10, 15, 50, 10, "UNEA Type"
+  Text 70, 15, 80, 10, input_class.UNEA_type
+  Text 10, 30, 50, 10, "UNEA Prosp"
+  Text 70, 30, 80, 10, input_class.UNEA_prosp_amt
+  Text 10, 45, 50, 10, "UNEA Retro"
+  Text 70, 45, 80, 10, input_class.UNEA_retro_amt
+  Text 10, 60, 50, 10, "UNEA Pic Avg"
+  Text 70, 60, 80, 10, input_class.UNEA_pic_avg
+  Text 10, 75, 50, 10, "Upper Realm"
+  Text 70, 75, 80, 10, input_class.lower_realm
+  Text 10, 90, 50, 10, "Lower Realm"
+  Text 70, 90, 80, 10, input_class.upper_realm
+  Text 10, 105, 50, 10, "Amt Received"
+  Text 70, 105, 80, 10, FormatCurrency(pay_amt)
+  CheckBox 70, 120, 70, 10, "Within Realm?", within_the_realm
+  ButtonGroup ButtonPressed
+    OkButton 95, 155, 50, 15
+    CancelButton 145, 155, 50, 15
+EndDialog
+
+dialog Dialog1
+	input_class.within_realm = within_realm
+END FUNCTION
+
+FUNCTION sort_numeric_array_descending(values_array, separate_character, output_array)
+	'trimming and splitting the array	
+	values_array = trim(values_array)
+	values_array = split(values_array, separate_character)
+	num_of_values = ubound(values_array)
+	
+	REDIM placeholder_array(num_of_values, 1)
+		' position 0 is the number, position 1 is if the number has been put in the output array
+	
+	'assigning the number values to the multi-dimensional placeholder array AND whether the specific value has been used for comparison yet (position 1)
+	array_position = 0
+	FOR EACH num_char IN values_array
+		IF num_char <> "" THEN 
+			num_char = cdbl(num_char)
+			placeholder_array(array_position, 0) = num_char
+			placeholder_array(array_position, 1) = FALSE
+			array_position = array_position + 1
+		END IF
+	NEXT		
+
+	'reseting array_position for the generation of the output array
+	array_position = 0
+	i = 0
+	all_sorted = FALSE
+	DO
+		'stating that the number has not yet been put into the sorted array
+		highest_value = FALSE
+		value_to_watch = placeholder_array(i, 0)
+		IF placeholder_array(i, 1) = FALSE THEN 
+			FOR j = 0 TO num_of_values
+				'If the value is not blank AND if we still have not assigned this value to the output array. We need
+				' to avoid a list of only the lowest values, which is what happens what you remove the placeholder_array(j, 1) bit			
+				IF placeholder_array(j, 0) <> ""  AND placeholder_array(j, 1) = FALSE THEN 
+					IF value_to_watch >= placeholder_array(j, 0) THEN 
+						highest_value = TRUE
+					ELSE
+						'If the function finds a value LOWER than the current one, it stops comparison and exits the FOR NEXT
+						highest_value = FALSE
+						EXIT FOR
+					END IF
+				END IF
+			NEXT
+		END IF
+		
+		'If we confirm that this is the highest value...
+		IF highest_value = TRUE THEN 
+			'...then we assign position 1 as TRUE (so we will not use this value for comparison in the future)
+			placeholder_array(i, 1) = TRUE
+			'...we assign it to the output array...
+			output_array = output_array & value_to_watch & ","
+			'...and we move on to the next position in the array...
+			array_position = array_position + 1
+			'...until we find that we have hit the ubound for the original array. Then we stop assigning.			
+			IF array_position = num_of_values THEN all_sorted = TRUE
+		END IF
+		'If we get through this specific number and find that it does not go next on the sorted list,
+		' we need to get to the next number. If we find that we have got through all the numbers and the list 
+		' is not complete, we need to reset this value, and start back at the beginning of the original list.
+		' This way, we avoid skipping numbers that should be showing up on the list.
+		i = i + 1
+		IF i = num_of_values AND all_sorted = FALSE THEN i = 0
+	LOOP UNTIL all_sorted = TRUE
+	
+	output_array = trim(output_array)
+	output_array = split(output_array, ",")
+END FUNCTION
+
+'END =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+'Class for CSES information
+CLASS CSESInfo
+	public property get class_type 
+		class_type = "CSES"
+	end property
+	PUBLIC CSES_type
+	PUBLIC CSES_amt
+	PUBLIC CSES_date
+	PUBLIC CSES_within_realm
+END CLASS
+
+'building the class for the UNEA panels
+CLASS UNEAInfo
+	'class type --> used to differentiate m-d array positions from CSES classes
+	public property get class_type 
+		class_type = "UNEA"
+	end property
+	
+	'used for the UNEA type (on the UNEA panel)
+	PUBLIC UNEA_type
+	PUBLIC UNEA_prosp_amt
+	PUBLIC UNEA_retro_amt
+	PUBLIC UNEA_pic_avg
+	PUBLIC UNEA_pic_dt1
+	PUBLIC UNEA_pic_amt1
+	PUBLIC UNEA_pic_dt2
+	PUBLIC UNEA_pic_amt2
+	PUBLIC UNEA_pic_dt3
+	PUBLIC UNEA_pic_amt3
+
+	public UNEA_pic_amt_array
+	public UNEA_pic_dt_array
+	
+	public upper_realm
+	public lower_realm
+	public within_realm
+END CLASS
+
+'SECTION 02: THE SCRIPT
+EMConnect ""
+
+EMSendKey "t"
+transmit
+EMReadScreen case_number, 8, 5, 73
+EMWriteScreen "CSES", 20, 70 'This is set as a TIKL for testing purposes. It should be set as "CSES" for live purposes.
+transmit
+EMWriteScreen case_number, 20, 38
+transmit
+
+'Building our PMI array first.
+MAXIS_row = 6
+Do 
+	EMReadScreen line_check, 4, MAXIS_row, 20
+	If line_check <> "DISB" and MAXIS_row = 6 then script_end_procedure("This is not a DISB CS message. If you have other CSES messages that are not about CS disbursements, please clear them manually before using this script again. If you have questions, contact the scripts administrator.")
+	
+	If line_check <> "DISB" then exit do
+	EMWriteScreen "x", MAXIS_row, 3
+	transmit
+	row = 1
+	col = 1	
+	EMSearch "TYPE", row, col
+	EMReadScreen line_CS_type, 2, row, col + 5
+	If line_CS_type = "40" or line_CS_type = "37" then
+		row = 1
+		col = 1
+		EMSearch "REF NBR: ", row, col
+		EMReadScreen line_PMI_numbers_no_spaces, 2, row, col + 9
+	Else
+		row = 1
+		col = 1
+		EMSearch " TO PMI(S): ", row, col
+		EMReadScreen line_issue_date, 8, row, col - 8
+		EMReadScreen line_raw_PMI_numbers_initial, 40, row, col + 12
+		EMReadScreen line_raw_PMI_numbers_overflow, 70, row + 1, 5
+		line_raw_PMI_numbers = line_raw_PMI_numbers_initial & line_raw_PMI_numbers_overflow
+		line_PMI_numbers_no_spaces = Replace(line_raw_PMI_numbers, " ", "")
+	End if
+	line_PMI_array = Split(line_PMI_numbers_no_spaces, ",")	
+	FOR EACH cl_PMI IN line_PMI_array
+		IF cl_PMI <> "" THEN 
+			IF InStr(PMI_array, cl_PMI) = 0 THEN PMI_array = PMI_array & cl_PMI & ","
+		END IF
+	NEXT	
+	PF3
+	MAXIS_row = MAXIS_row + 1	
+Loop until line_check <> "DISB" 
+
+PMI_array = trim(PMI_array)
+PMI_array = split(PMI_array, ",")
+num_of_PMI = ubound(PMI_array)
+REDIM cses_dail_scrubber_array(num_of_PMI - 1, 15)
+
+array_position = 0
+FOR EACH cl_PMI IN PMI_array
+	IF cl_PMI <> "" THEN cses_dail_scrubber_array(array_position, 0) = cl_PMI
+	array_position = array_position + 1
+NEXT
+num_of_cl = array_position - 2
+
+msgbox ubound(cses_dail_scrubber_array, 1)
+msgbox ubound(cses_dail_scrubber_array, 2)
+
+'going through and grabbing CS information
+MAXIS_row = 6
+num_of_cses = 1
+'CSES Messages will be stored on odd numbers (1, 3, 5, 7)...
+'		This will make it easier to find the CSES messages... FOR i = 1 TO num_of_cses STEP 2
+'UNEA information will be stored on even numbers (2, 4, 6, 8)...
+'		This will make it easier to find the UNEA messages... FOR i = 2 TO num_of_cses STEP 2
+Do
+	EMReadScreen line_check, 4, MAXIS_row, 20
+	If line_check <> "DISB" and MAXIS_row = 6 then script_end_procedure("This is not a DISB CS message. If you have other CSES messages that are not about CS disbursements, please clear them manually before using this script again. If you have questions, contact the scripts administrator.")
+	
+	If line_check <> "DISB" then exit do
+	EMWriteScreen "x", MAXIS_row, 3
+	transmit
+	row = 1
+	col = 1	
+	EMSearch "TYPE", row, col
+	EMReadScreen line_CS_type, 2, row, col + 5
+	If line_CS_type = "40" or line_CS_type = "37" then
+		'Checking to see that the array does not already have a position for that CSES type
+		FOR i = 0 TO ubound(cses_dail_scrubber_array, 1) - 1
+			FOR j = 1 TO ubound(cses_dail_scrubber_array, 2)- 1
+				'IF we have found this CS type, we will add what we have found to the class.
+				IF cses_dail_scrubber_array(i, j).class_type = "CSES" AND cses_dail_scrubber_array(i, j).CSES_type = line_CS_type THEN 
+					'>>>>>>>>>>>>>>>>>>>>>>>>>
+					'>>>>>>>>>>>>>>>>>>>>>>>>> This is the old read function. Should require update.
+					'>>>>>>>>>>>>>>>>>>>>>>>>>				
+					row = 1
+					col = 1
+					EMSearch "REF NBR: ", row, col
+					EMReadScreen line_PMI_numbers_no_spaces, 2, row, col + 9
+					row = 1
+					col = 1
+					EMSearch "$", row, col
+					EMReadScreen line_COEX_amt, 6, row, col + 1
+					line_COEX_PMI_total = 1
+					row = 1
+					col = 1
+					EMSearch "ISSUED ON ", row, col
+					If row <> 0 then 
+						EMReadScreen line_issue_date, 8, row, col + 10
+					Else
+						row = 1
+						col = 1
+						EMSearch "TO CRGVR", row, col
+						EMReadScreen line_issue_date, 8, row, col - 9
+					End if
+				'ElseIF this is a CSES type that we do not have a class for, we will create a new class at a new Array position
+				ELSEIF cses_dail_scrubber_array(i, j).class_type = "CSES" AND cses_dail_scrubber_array(i, j).CSES_type <> line_CS_type AND j = (ubound(cses_dail_scrubber_array, 2) - 1) THEN 
+					num_of_cses = j + 1
+					SET cses_dail_scrubber_array(i, num_of_cses) = NEW CSESInfo
+					
+					'>>>>>>>>>>>>>>>>>>>>>>>>>
+					'>>>>>>>>>>>>>>>>>>>>>>>>> This is the old read function. Should require update.
+					'>>>>>>>>>>>>>>>>>>>>>>>>>
+					row = 1
+					col = 1
+					EMSearch "REF NBR: ", row, col
+					EMReadScreen line_PMI_numbers_no_spaces, 2, row, col + 9
+					row = 1
+					col = 1
+					EMSearch "$", row, col
+					EMReadScreen line_COEX_amt, 6, row, col + 1
+					line_COEX_PMI_total = 1
+					row = 1
+					col = 1
+					EMSearch "ISSUED ON ", row, col
+					If row <> 0 then 
+						EMReadScreen line_issue_date, 8, row, col + 10
+					Else
+						row = 1
+						col = 1
+						EMSearch "TO CRGVR", row, col
+						EMReadScreen line_issue_date, 8, row, col - 9
+					End if					
+					
+					
+				END IF
+			NEXT
+		NEXT
+	Else
+		row = 1
+		col = 1
+		EMSearch "$", row, col
+		EMReadScreen line_COEX_amt, 6, row, col + 1
+		line_COEX_amt = Replace(line_COEX_amt, "F", "")
+		EMSearch "CHILD(REN)", row, col
+		EMReadScreen line_COEX_PMI_total, 1, row, col - 2
+		EMSearch " TO PMI(S): ", row, col
+		EMReadScreen line_issue_date, 8, row, col - 8
+		EMReadScreen line_raw_PMI_numbers_initial, 40, row, col + 12
+		EMReadScreen line_raw_PMI_numbers_overflow, 70, row + 1, 5
+		line_raw_PMI_numbers = line_raw_PMI_numbers_initial & line_raw_PMI_numbers_overflow
+		line_PMI_numbers_no_spaces = Replace(line_raw_PMI_numbers, " ", "")
+	End if
+	line_PMI_array = Split(line_PMI_numbers_no_spaces, ",")
+	'For each x in line_PMI_array
+	'	ObjExcel.Cells(excel_row, 1).Value = message_number
+	'	ObjExcel.Cells(excel_row, 2).Value = x
+	'	ObjExcel.Cells(excel_row, 4).Value = line_COEX_amt/line_COEX_PMI_total
+	'	ObjExcel.Cells(excel_row, 5).Value = line_CS_type
+	'	ObjExcel.Cells(excel_row, 6).Value = line_issue_date
+	'	excel_row = excel_row + 1
+	'Next
+	PF3
+	MAXIS_row = MAXIS_row + 1
+	message_number = message_number + 1
+Loop until line_check <> "DISB"
+
+EMSendKey "S"
+transmit
+EMSendKey "UNEA"
+transmit
+
+'Creating an array of all hh ref numbers
+unea_row = 5
+DO
+	EMReadScreen unea_ref_num, 2, unea_row, 3
+	IF unea_ref_num <> "  " THEN unea_ref_array = unea_ref_array & unea_ref_num & "~~"
+	unea_row = unea_row + 1
+LOOP UNTIL unea_ref_num = "  "
+unea_ref_array = split(trim(unea_ref_array), "~~")
+
+
+
+'>>>>> THIS BIT OF THE SCRIPT GRABS ALL UNEA INFORMATION FOR ALL PMIS IDENTIFIED ON THE DAIL MESSAGE <<<<<
+FOR EACH ref_num IN unea_ref_array
+	IF ref_num <> "" THEN 
+		EMWriteScreen ref_num, 20, 76
+		CALL write_value_and_transmit("01", 20, 79)
+		'Going through each person
+		FOR i = 0 TO num_of_cl
+			'Going through each UNEA message
+			FOR j = 2 TO 15 STEP 2
+				num_of_cses = 2
+				EMReadScreen unea_pmi, 8, 4, 71
+				unea_pmi = trim(unea_pmi)
+				EMReadScreen enter_a_valid_command, 21, 24, 2
+				IF unea_pmi = cses_dail_scrubber_array(i, 0) AND enter_a_valid_command <> "ENTER A VALID COMMAND" THEN 
+					EMReadScreen unea_inc_type, 2, 5, 37
+					IF unea_inc_type = "08" OR unea_inc_type = "35" OR unea_inc_type = "36" OR unea_inc_type = "37" OR unea_inc_type = "39" OR unea_inc_type = "40" OR unea_inc_type = "43" THEN 
+						num_of_cses = num_of_cses + 2
+						SET cses_dail_scrubber_array(i, num_of_cses) = NEW UNEAInfo
+						cses_dail_scrubber_array(i, num_of_cses).UNEA_type = unea_inc_type
+						EMReadScreen prosp_amt, 8, 18, 68
+							prosp_amt = trim(prosp_amt)
+							IF prosp_amt = "" THEN prosp_amt = "0.00"
+							cses_dail_scrubber_array(i, num_of_cses).UNEA_prosp_amt = prosp_amt
+						EMReadScreen retro_amt, 8, 18, 39
+							retro_amt = trim(retro_amt)
+							IF retro_amt = "" THEN retro_amt = "0.00"
+							cses_dail_scrubber_array(i, num_of_cses).UNEA_retro_amt = retro_amt
+						
+						'Grabbing specific PIC payments to determine the realm of payments received within the past 90 days.
+						CALL write_value_and_transmit("X", 10, 26)
+						EMReadScreen pic_avg, 8, 18, 56
+							pic_avg = trim(pic_avg)
+							IF pic_avg = "" THEN pic_avg = "0.00"
+							cses_dail_scrubber_array(i, num_of_cses).UNEA_pic_avg = pic_avg
+						EMReadScreen pic_dt1, 8, 9, 13
+							pic_dt1 = replace(pic_dt1, " ", "/")
+							IF pic_dt1 <> "__/__/__" THEN 
+								IF DateDiff("D", pic_dt1, date) =< 90 THEN 
+									EMReadScreen pic_amt1, 8, 9, 25
+									pic_amt1 = trim(pic_amt1)
+									IF pic_amt1 <> "________" THEN pic_amts_array = pic_amts_array & pic_amt1 & ","
+								END IF
+							END IF
+						EMReadScreen pic_dt2, 8, 10, 13
+							pic_dt2 = replace(pic_dt2, " ", "/")
+							IF pic_dt2 <> "__/__/__" THEN 
+								IF DateDiff("D", pic_dt2, date) =< 90 THEN 
+									EMReadScreen pic_amt2, 8, 10, 25
+									pic_amt2 = trim(pic_amt2)
+									IF pic_amt2 <> "________" THEN pic_amts_array = pic_amts_array & pic_amt2 & ","
+								END IF
+							END IF
+						EMReadScreen pic_dt3, 8, 11, 13
+							pic_dt3 = replace(pic_dt3, " ", "/")
+							IF pic_dt3 <> "__/__/__" THEN 
+								IF DateDiff("D", pic_dt3, date) =< 90 THEN 
+									EMReadScreen pic_amt3, 8, 11, 25
+									pic_amt3 = trim(pic_amt3)
+									IF pic_amt3 <> "________" THEN pic_amts_array = pic_amts_array & pic_amt3 & ","
+								END IF
+							END IF
+						EMReadScreen pic_dt4, 8, 12, 13
+							pic_dt4 = replace(pic_dt4, " ", "/")
+							IF pic_dt4 <> "__/__/__" THEN 
+								IF DateDiff("D", pic_dt4, date) =< 90 THEN
+									EMReadScreen pic_amt4, 8, 12, 25
+									pic_amt4 = trim(pic_amt4)
+									IF pic_amt4 <> "________" THEN pic_amts_array = pic_amts_array & pic_amt4 & ","
+								END IF
+							END IF
+						EMReadScreen pic_dt5, 8, 13, 13
+							pic_dt5 = replace(pic_dt5, " ", "/")
+							IF pic_dt5 <> "__/__/__" THEN 
+								IF DateDiff("D", pic_dt5, date) =< 90 THEN 
+									EMReadScreen pic_amt5, 8, 13, 25
+									pic_amt5 = trim(pic_amt5)
+									IF pic_amt5 <> "________" THEN pic_amts_array = pic_amts_array & pic_amt5 & ","		
+								END IF
+							END IF
+						IF pic_amts_array <> "" THEN cses_dail_scrubber_array(i, num_of_cses).UNEA_pic_amt_array = pic_amts_array
+						
+						transmit
+						transmit
+
+						CALL build_dsp_dlg(cses_dail_scrubber_array(i, num_of_cses))
+
+					END IF
+				END IF
+			NEXT
+		NEXT
+	END IF
+NEXT
+
+
+
+
+
+
+
