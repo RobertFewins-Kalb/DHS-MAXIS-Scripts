@@ -6,9 +6,9 @@ start_time = timer
 IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
 	IF run_locally = FALSE or run_locally = "" THEN		'If the scripts are set to run locally, it skips this and uses an FSO below.
 		IF use_master_branch = TRUE THEN			'If the default_directory is C:\DHS-MAXIS-Scripts\Script Files, you're probably a scriptwriter and should use the master branch.
-			FuncLib_URL = "https://raw.githubusercontent.com/MN-Script-Team/BZS-FuncLib/master/MASTER%20FUNCTIONS%20LIBRARY.vbs"
+			FuncLib_URL = "https://raw.githubusercontent.com/RobertFewins-Kalb/Anoka-Specific-Scripts/master/GLOBAL-FAVORITES/FUNCLIB.vbs"
 		Else																		'Everyone else should use the release branch.
-			FuncLib_URL = "https://raw.githubusercontent.com/MN-Script-Team/BZS-FuncLib/RELEASE/MASTER%20FUNCTIONS%20LIBRARY.vbs"
+			FuncLib_URL = "https://raw.githubusercontent.com/RobertFewins-Kalb/Anoka-Specific-Scripts/master/GLOBAL-FAVORITES/FUNCLIB.vbs"
 		End if
 		SET req = CreateObject("Msxml2.XMLHttp.6.0")				'Creates an object to get a FuncLib_URL
 		req.open "GET", FuncLib_URL, FALSE							'Attempts to open the FuncLib_URL
@@ -86,26 +86,7 @@ dim ACTIONS_dialog
 script_array_ACTIONS_main = array()
 script_array_ACTIONS_list = array()
 
-
 'END VARIABLES TO DECLARE===================================================================================================
-
-'CLASSES TO DEFINE==========================================================================================================
-
-'A class for each script item
-class script
-
-	public script_name
-	public file_name
-	public description
-	public button
-
-	public property get button_size	'This part determines the size of the button dynamically by determining the length of the script name, multiplying that by 3.5, rounding the decimal off, and adding 10 px
-		button_size = round ( len( script_name ) * 3.5 ) + 10
-	end property
-
-end class
-
-'END CLASSES TO DEFINE==========================================================================================================
 
 'LIST OF SCRIPTS================================================================================================================
 
